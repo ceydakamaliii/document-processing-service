@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: documents_db
+      POSTGRES_USER: documents_user
+      POSTGRES_PASSWORD: documents_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U documents_user -d documents_db"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/documents_db
+      SPRING_DATASOURCE_USERNAME: documents_user
+      SPRING_DATASOURCE_PASSWORD: documents_password
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:

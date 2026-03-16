@@ -1,0 +1,19 @@
+package com.example.docprocessing.domain;
+
+public enum WorkflowStatus {
+    RECEIVED,
+    DMS_FETCHING,
+    DMS_FETCH_COMPLETED,
+    DMS_FETCH_FAILED,
+    OCR_PROCESSING,
+    OCR_COMPLETED,
+    OCR_FAILED,
+    CLASSIFYING,
+    CLASSIFICATION_COMPLETED,
+    CLASSIFICATION_FAILED,
+    NER_PROCESSING,
+    NER_FAILED,
+    NER_COMPLETED,
+    COMPLETED,
+    FAILED
+}
