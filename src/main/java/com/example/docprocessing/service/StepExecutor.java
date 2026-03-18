@@ -28,9 +28,22 @@ public class StepExecutor {
                             ProcessingStep step,
                             Supplier<String> stepLogic) {
 
-        workflowService.transitionTo(documentId, processingStatus);
+        DocumentWorkflow wf = workflowService.getById(documentId);
+        if (wf.getCurrentStep() != processingStatus) {
+            workflowService.transitionTo(documentId, processingStatus);
+        }
 
         Instant startedAt = Instant.now();
+        workflowService.saveStepResult(
+            documentId,
+            step,
+            StepStatus.PENDING,
+            startedAt,
+            null,
+            null,
+            null,
+            null
+        );
         workflowService.saveStepResult(
             documentId,
             step,
@@ -61,7 +74,8 @@ public class StepExecutor {
             workflowService.transitionTo(documentId, successStatus);
 
         } catch (Exception e) {
-            log.warn("Step {} failed for documentId={}", step, documentId, e);
+            log.warn("Step {} failed for documentId={}: {}", step, documentId, e.getMessage());
+            log.debug("Full stack trace:", e);
 
             Instant completedAt = Instant.now();
             long durationMs = Duration.between(startedAt, completedAt).toMillis();
@@ -76,7 +90,7 @@ public class StepExecutor {
                 null,
                 e.getMessage()
             );
-            workflowService.transitionTo(documentId, failedStatus);
+            workflowService.transitionTo(documentId, failedStatus, e.getMessage());
             workflowService.transitionTo(documentId, WorkflowStatus.FAILED);
         }
     }

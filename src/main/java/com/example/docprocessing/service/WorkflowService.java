@@ -5,23 +5,37 @@ import com.example.docprocessing.exception.DocumentNotFoundException;
 import com.example.docprocessing.exception.InvalidTransitionException;
 import com.example.docprocessing.repository.DocumentWorkflowRepository;
 import com.example.docprocessing.repository.StepResultRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
 public class WorkflowService {
 
+    private static final Logger transitionLog = LoggerFactory.getLogger("workflow.transition");
+
     private final DocumentWorkflowRepository documentWorkflowRepository;
     private final StepResultRepository stepResultRepository;
+    private final ObjectMapper objectMapper;
 
     public WorkflowService(DocumentWorkflowRepository documentWorkflowRepository,
-                           StepResultRepository stepResultRepository) {
+                           StepResultRepository stepResultRepository,
+                           ObjectMapper objectMapper) {
         this.documentWorkflowRepository = documentWorkflowRepository;
         this.stepResultRepository = stepResultRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -48,19 +62,35 @@ public class WorkflowService {
 
     @Transactional
     public DocumentWorkflow transitionTo(UUID documentId, WorkflowStatus newStatus) {
-        DocumentWorkflow wf = getById(documentId);
-        WorkflowStatus current = wf.getCurrentStep();
+        return transitionTo(documentId, newStatus, null);
+    }
 
-        if (!isValidTransition(current, newStatus)) {
-            throw new InvalidTransitionException("Invalid transition: " + current + " -> " + newStatus);
+    @Transactional
+    public DocumentWorkflow transitionTo(UUID documentId, WorkflowStatus newStatus, String errorReason) {
+        DocumentWorkflow wf = getById(documentId);
+        WorkflowStatus previous = wf.getCurrentStep();
+
+        if (!isValidTransition(previous, newStatus)) {
+            throw new InvalidTransitionException("Invalid transition: " + previous + " -> " + newStatus);
         }
+
+        long durationMs = wf.getUpdatedAt() != null
+            ? Duration.between(wf.getUpdatedAt(), Instant.now()).toMillis()
+            : 0;
 
         wf.setCurrentStep(newStatus);
         if (isFailureStatus(newStatus)) {
-            wf.setFailedAtStep(current);
+            wf.setFailedAtStep(previous);
+            if (errorReason != null) {
+                wf.setFailureReason(errorReason);
+            }
         }
         wf.setUpdatedAt(Instant.now());
-        return documentWorkflowRepository.save(wf);
+        DocumentWorkflow saved = documentWorkflowRepository.save(wf);
+
+        logTransition(documentId, wf.getRequestUid(), previous, newStatus, durationMs,
+            "State transition", errorReason);
+        return saved;
     }
 
     private boolean isValidTransition(WorkflowStatus from, WorkflowStatus to) {
@@ -91,6 +121,12 @@ public class WorkflowService {
 
             case NER_COMPLETED:
                 return to == WorkflowStatus.COMPLETED;
+
+            case DMS_FETCH_FAILED:
+            case OCR_FAILED:
+            case CLASSIFICATION_FAILED:
+            case NER_FAILED:
+                return to == WorkflowStatus.FAILED;
 
             case FAILED:
             case COMPLETED:
@@ -147,8 +183,15 @@ public class WorkflowService {
             }
         }
 
-        wf.setUpdatedAt(Instant.now());
-        return documentWorkflowRepository.save(wf);
+        Instant now = Instant.now();
+        long durationMs = wf.getUpdatedAt() != null
+            ? Duration.between(wf.getUpdatedAt(), now).toMillis()
+            : 0;
+        wf.setUpdatedAt(now);
+        DocumentWorkflow saved = documentWorkflowRepository.save(wf);
+        logTransition(documentId, wf.getRequestUid(), WorkflowStatus.FAILED, saved.getCurrentStep(),
+            durationMs, "Retry - resuming from failed step", null);
+        return saved;
     }
 
     @Transactional
@@ -159,11 +202,19 @@ public class WorkflowService {
             throw new InvalidTransitionException("Cannot cancel a terminal workflow: " + wf.getCurrentStep());
         }
 
-        wf.setFailedAtStep(wf.getCurrentStep());
+        WorkflowStatus previous = wf.getCurrentStep();
+        wf.setFailedAtStep(previous);
         wf.setCurrentStep(WorkflowStatus.FAILED);
         wf.setFailureReason("CANCELLED_BY_USER");
-        wf.setUpdatedAt(Instant.now());
-        return documentWorkflowRepository.save(wf);
+        Instant now = Instant.now();
+        long durationMs = wf.getUpdatedAt() != null
+            ? Duration.between(wf.getUpdatedAt(), now).toMillis()
+            : 0;
+        wf.setUpdatedAt(now);
+        DocumentWorkflow saved = documentWorkflowRepository.save(wf);
+        logTransition(documentId, wf.getRequestUid(), previous, WorkflowStatus.FAILED,
+            durationMs, "Cancelled by user", "CANCELLED_BY_USER");
+        return saved;
     }
 
     @Transactional
@@ -195,5 +246,69 @@ public class WorkflowService {
         stepResult.setErrorMessage(errorMessage);
 
         return stepResultRepository.save(stepResult);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<StepResult> getStepResult(UUID documentId, ProcessingStep step) {
+        return stepResultRepository.findByDocumentWorkflow_IdAndStep(documentId, step);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<ProcessingStep, StepResult> getAllStepResults(UUID documentId) {
+        var results = stepResultRepository.findByDocumentWorkflow_Id(documentId);
+        Map<ProcessingStep, StepResult> map = new HashMap<>();
+        for (StepResult result : results) {
+            map.put(result.getStep(), result);
+        }
+        return map;
+    }
+
+    @Transactional
+    public void updateDocumentMetadata(UUID documentId, String documentName, Long contentSizeBytes) {
+        DocumentWorkflow wf = getById(documentId);
+        if (documentName != null) {
+            wf.setDocumentName(documentName);
+        }
+        if (contentSizeBytes != null) {
+            wf.setContentSizeBytes(contentSizeBytes);
+        }
+        wf.setUpdatedAt(Instant.now());
+        documentWorkflowRepository.save(wf);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentWorkflow> listDocuments(WorkflowStatus status) {
+        if (status != null) {
+            return documentWorkflowRepository.findByCurrentStep(status);
+        }
+        return documentWorkflowRepository.findAll();
+    }
+
+    private void logTransition(UUID documentId, UUID requestUid, WorkflowStatus previousStep,
+                               WorkflowStatus currentStep, long durationMs, String message, String errorReason) {
+        Map<String, Object> logData = new HashMap<>();
+        logData.put("timestamp", Instant.now().toString());
+        logData.put("level", errorReason != null ? "WARN" : "INFO");
+        logData.put("logger", "workflow.transition");
+        logData.put("documentId", documentId != null ? documentId.toString() : null);
+        logData.put("requestUid", requestUid != null ? requestUid.toString() : null);
+        logData.put("previousStep", previousStep != null ? previousStep.name() : null);
+        logData.put("currentStep", currentStep != null ? currentStep.name() : null);
+        logData.put("durationMs", durationMs);
+        logData.put("message", message);
+        if (errorReason != null) {
+            logData.put("errorReason", errorReason);
+        }
+        try {
+            String json = objectMapper.writeValueAsString(logData);
+            if (errorReason != null) {
+                transitionLog.warn(json);
+            } else {
+                transitionLog.info(json);
+            }
+        } catch (JsonProcessingException e) {
+            transitionLog.warn("Failed to serialize transition log: documentId={} {} -> {}",
+                documentId, previousStep, currentStep, e);
+        }
     }
 }

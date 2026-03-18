@@ -30,7 +30,7 @@ public class SimulatedDmsClient implements DmsClient {
 
         long maxSize = 20L * 1024 * 1024;
         if (sizeBytes > maxSize) {
-            throw new DocumentTooLargeException("Document is larger than 20MB: " + sizeBytes + " bytes");
+            throw new DocumentTooLargeException("DOCUMENT_TOO_LARGE");
         }
 
         DmsDocumentMetadata metadata = new DmsDocumentMetadata();

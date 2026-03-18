@@ -12,5 +12,7 @@ public interface StepResultRepository extends JpaRepository<StepResult, Long> {
 
     List<StepResult> findByDocumentWorkflow_IdOrderByStartedAtAsc(UUID documentId);
 
+    List<StepResult> findByDocumentWorkflow_Id(UUID documentId);
+
     Optional<StepResult> findByDocumentWorkflow_IdAndStep(UUID documentId, ProcessingStep step);
 }

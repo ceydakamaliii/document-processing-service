@@ -11,6 +11,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
+    
+dms:
+  base-url: ${DMS_BASE_URL:https://dms.example.com/api/v1}
+  api-key: ${DMS_API_KEY:simulated-api-key-for-dev}
+  connect-timeout-ms: 5000
+  read-timeout-ms: 30000
 
 management:
   endpoints:
