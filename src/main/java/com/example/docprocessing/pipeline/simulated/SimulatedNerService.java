@@ -21,22 +21,34 @@ public class SimulatedNerService implements NerService {
             throw new RuntimeException("Simulated NER failure");
         }
 
-        NerResult result = new NerResult();
-        result.setEntities(List.of(
-            entity("ORGANIZATION", "Acme Corp", 0.97),
-            entity("DATE", "2026-01-15", 0.99),
-            entity("AMOUNT", "$12,450.00", 0.95),
-            entity("INVOICE_NUMBER", "INV-2026-0342", 0.98),
-            entity("PERSON", "John Smith", 0.88)
-        ));
-        return result;
-    }
-
-    private static NerResult.Entity entity(String type, String value, double confidence) {
-        NerResult.Entity e = new NerResult.Entity();
-        e.setType(type);
-        e.setValue(value);
-        e.setConfidence(confidence);
-        return e;
+        return NerResult.builder()
+            .entities(List.of(
+                NerResult.Entity.builder()
+                    .type("ORGANIZATION")
+                    .value("Acme Corp")
+                    .confidence(0.97)
+                    .build(),
+                NerResult.Entity.builder()
+                    .type("DATE")
+                    .value("2026-01-15")
+                    .confidence(0.99)
+                    .build(),
+                NerResult.Entity.builder()
+                    .type("AMOUNT")
+                    .value("$12,450.00")
+                    .confidence(0.95)
+                    .build(),
+                NerResult.Entity.builder()
+                    .type("INVOICE_NUMBER")
+                    .value("INV-2026-0342")
+                    .confidence(0.98)
+                    .build(),
+                NerResult.Entity.builder()
+                    .type("PERSON")
+                    .value("John Smith")
+                    .confidence(0.88)
+                    .build()
+            ))
+            .build();
     }
 }

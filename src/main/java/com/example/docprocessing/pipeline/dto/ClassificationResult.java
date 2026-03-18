@@ -1,56 +1,26 @@
 package com.example.docprocessing.pipeline.dto;
 
+import lombok.Data;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import java.util.List;
 
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ClassificationResult {
-
     private String documentType;
     private double confidence;
     private List<AlternativeType> alternativeTypes;
 
-    public String getDocumentType() {
-        return documentType;
-    }
-
-    public void setDocumentType(String documentType) {
-        this.documentType = documentType;
-    }
-
-    public double getConfidence() {
-        return confidence;
-    }
-
-    public void setConfidence(double confidence) {
-        this.confidence = confidence;
-    }
-
-    public List<AlternativeType> getAlternativeTypes() {
-        return alternativeTypes;
-    }
-
-    public void setAlternativeTypes(List<AlternativeType> alternativeTypes) {
-        this.alternativeTypes = alternativeTypes;
-    }
-
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class AlternativeType {
-
         private String type;
         private double confidence;
-
-        public String getType() {
-            return type;
-        }
-
-        public void setType(String type) {
-            this.type = type;
-        }
-
-        public double getConfidence() {
-            return confidence;
-        }
-
-        public void setConfidence(double confidence) {
-            this.confidence = confidence;
-        }
     }
 }

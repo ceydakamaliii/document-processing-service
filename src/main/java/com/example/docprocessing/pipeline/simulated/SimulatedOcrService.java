@@ -19,16 +19,15 @@ public class SimulatedOcrService implements OcrService {
             throw new RuntimeException("Simulated OCR failure");
         }
 
-        OcrResult result = new OcrResult();
-        result.setPageCount(3);
-        result.setWordCount(847);
-        result.setConfidence(0.96);
-        result.setRawText("""
-            Invoice #INV-2026-0342
-            Date: 2026-01-15
-            Bill To: Acme Corp...
-            """);
-
-        return result;
+        return OcrResult.builder()
+            .pageCount(3)
+            .wordCount(847)
+            .confidence(0.96)
+            .rawText("""
+                Invoice #INV-2026-0342
+                Date: 2026-01-15
+                Bill To: Acme Corp...
+                """)
+            .build();
     }
 }

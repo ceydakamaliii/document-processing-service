@@ -21,20 +21,19 @@ public class SimulatedClassifierService implements ClassifierService {
             throw new RuntimeException("Simulated Classifier failure");
         }
 
-        ClassificationResult result = new ClassificationResult();
-        result.setDocumentType("INVOICE");
-        result.setConfidence(0.94);
-        result.setAlternativeTypes(List.of(
-            createAlternative("PURCHASE_ORDER", 0.04),
-            createAlternative("RECEIPT", 0.02)
-        ));
-        return result;
-    }
-
-    private static ClassificationResult.AlternativeType createAlternative(String type, double confidence) {
-        ClassificationResult.AlternativeType alt = new ClassificationResult.AlternativeType();
-        alt.setType(type);
-        alt.setConfidence(confidence);
-        return alt;
+        return ClassificationResult.builder()
+            .documentType("INVOICE")
+            .confidence(0.94)
+            .alternativeTypes(List.of(
+                ClassificationResult.AlternativeType.builder()
+                    .type("PURCHASE_ORDER")
+                    .confidence(0.04)
+                    .build(),
+                ClassificationResult.AlternativeType.builder()
+                    .type("RECEIPT")
+                    .confidence(0.02)
+                    .build()
+            ))
+            .build();
     }
 }

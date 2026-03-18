@@ -33,11 +33,11 @@ public class SimulatedDmsClient implements DmsClient {
             throw new DocumentTooLargeException("DOCUMENT_TOO_LARGE");
         }
 
-        DmsDocumentMetadata metadata = new DmsDocumentMetadata();
-        metadata.setFileName("invoice_2026_q1.pdf");
-        metadata.setContentType("application/pdf");
-        metadata.setSizeBytes(sizeBytes);
-        return metadata;
+        return DmsDocumentMetadata.builder()
+            .fileName("invoice_2026_q1.pdf")
+            .contentType("application/pdf")
+            .sizeBytes(sizeBytes)
+            .build();
     }
 
     @Override
